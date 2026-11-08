@@ -1,0 +1,20 @@
+# Spoolman with its SQLite database on the Docker host's local disk.
+# Keep the database off NFS/SMB: over NFS, writes took 2-8 s, longer than the
+# reader's 5 s wait for an answer, so taps showed red and then saved anyway.
+services:
+  spoolman:
+    image: ghcr.io/donkie/spoolman:latest
+    container_name: spoolman
+    restart: unless-stopped
+    ports:
+      - "7912:8000"     # Web UI and API: http://<docker-host>:7912
+    volumes:
+      - spoolman_data:/home/app/.local/share/spoolman
+      # Optional: put the nightly backups somewhere else, e.g. a NAS share.
+      # - /path/to/backups:/backups
+    environment:
+      - TZ=Etc/UTC   # your time zone, e.g. Europe/Berlin
+      # - SPOOLMAN_DIR_BACKUPS=/backups
+
+volumes:
+  spoolman_data:

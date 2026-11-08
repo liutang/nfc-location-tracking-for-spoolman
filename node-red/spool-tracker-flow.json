@@ -1,0 +1,388 @@
+[
+  {
+    "id": "68bc4ca858464ccc",
+    "type": "group",
+    "z": "8c1957626f841193",
+    "name": "Spool Tracker",
+    "style": {
+      "label": true
+    },
+    "nodes": [
+      "87545599af8ab74a",
+      "bdecbce52c2f3201",
+      "20b03e3409ca306d",
+      "419eef61da4faa6d",
+      "eaf03258bd803d12",
+      "b4cb38bc29170739",
+      "0d07d82ce1bcc344",
+      "3909e55dec447154",
+      "ed56b353ec2655a8",
+      "c47e8aaae6090b8a",
+      "6e49fead3df6aa3b",
+      "5c1a28acf2c5e0f5",
+      "036eaf28ca860708",
+      "86a2fcf29fdb1f64"
+    ],
+    "x": 64,
+    "y": 1599,
+    "w": 1662,
+    "h": 282
+  },
+  {
+    "id": "87545599af8ab74a",
+    "type": "comment",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Tap a spool on a reader -> Spoolman location. Enroll: set input_number.spool_enroll_id to a spool ID, then tap.",
+    "info": "",
+    "x": 530,
+    "y": 1640,
+    "wires": []
+  },
+  {
+    "id": "bdecbce52c2f3201",
+    "type": "server-events",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Spool tap",
+    "server": "",
+    "version": 3,
+    "exposeAsEntityConfig": "",
+    "eventType": "esphome.spool_tap",
+    "eventData": "",
+    "waitForRunning": true,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "eventData"
+      },
+      {
+        "property": "topic",
+        "propertyType": "msg",
+        "value": "$outputData(\"eventData\").event_type",
+        "valueType": "jsonata"
+      }
+    ],
+    "x": 180,
+    "y": 1720,
+    "wires": [
+      [
+        "419eef61da4faa6d"
+      ]
+    ]
+  },
+  {
+    "id": "20b03e3409ca306d",
+    "type": "inject",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Test tap (Printer 1)",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"event\": {\"tag_id\": \"04-A1-B2-C3-D4-E5-F6\", \"location\": \"Printer 1\", \"reader\": \"spool-reader-printer-1\"}}",
+    "payloadType": "json",
+    "x": 190,
+    "y": 1780,
+    "wires": [
+      [
+        "419eef61da4faa6d"
+      ]
+    ]
+  },
+  {
+    "id": "419eef61da4faa6d",
+    "type": "function",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Parse + ignore repeats",
+    "func": "// Turns an esphome.spool_tap event into msg.tap, and drops repeat reads.\n// A sticker at the edge of the PN532's range gets read several times in a row;\n// only the first read of a tag on a reader within 4 s is processed. A repeat that\n// arrives after the first one was answered gets the same answer again, so the\n// reader doesn't sit white and time out.\nconst REPEAT_MS = 4000;\n\nconst ev = (msg.payload && msg.payload.event) || {};\nconst tag = String(ev.tag_id || '').trim().toUpperCase();\nconst location = String(ev.location || '').trim();\nconst reader = String(ev.reader || '').trim();\nif (!tag || !location || !reader) {\n    node.warn(`Ignoring spool tap with missing data: ${JSON.stringify(ev)}`);\n    return [null, null];\n}\nconst feedbackAction = `esphome.${reader.replace(/-/g, '_')}_feedback`;\n\nconst now = Date.now();\nconst last = flow.get('spoolTapLast') || {};\nfor (const k of Object.keys(last)) {\n    if (now - last[k].t > 60000) delete last[k];\n}\nconst key = `${reader}|${tag}`;\nconst prev = last[key];\nif (prev && now - prev.t < REPEAT_MS) {\n    flow.set('spoolTapLast', last);\n    if (prev.result === null) return [null, null]; // first read still in progress\n    return [null, { payload: { action: feedbackAction, data: { success: prev.result } } }];\n}\nlast[key] = { t: now, result: null };\nflow.set('spoolTapLast', last);\n\nmsg.tap = { tag, location, reader, feedbackAction };\nnode.status({ fill: 'blue', shape: 'dot', text: `${tag} @ ${location}` });\nreturn [msg, null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 1740,
+    "wires": [
+      [
+        "eaf03258bd803d12"
+      ],
+      [
+        "c47e8aaae6090b8a"
+      ]
+    ]
+  },
+  {
+    "id": "eaf03258bd803d12",
+    "type": "api-current-state",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Spool enroll ID",
+    "server": "",
+    "version": 3,
+    "outputs": 1,
+    "halt_if": "",
+    "halt_if_type": "str",
+    "halt_if_compare": "is",
+    "entity_id": "input_number.spool_enroll_id",
+    "state_type": "str",
+    "blockInputOverrides": true,
+    "outputProperties": [
+      {
+        "property": "enroll_id",
+        "propertyType": "msg",
+        "value": "string",
+        "valueType": "entityState"
+      }
+    ],
+    "for": "0",
+    "forType": "num",
+    "forUnits": "minutes",
+    "override_topic": false,
+    "state_location": "payload",
+    "override_payload": "msg",
+    "entity_location": "data",
+    "override_data": "msg",
+    "x": 630,
+    "y": 1720,
+    "wires": [
+      [
+        "b4cb38bc29170739"
+      ]
+    ]
+  },
+  {
+    "id": "b4cb38bc29170739",
+    "type": "http request",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Get spools",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://SPOOLMAN_HOST:7912/api/v1/spool",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 830,
+    "y": 1720,
+    "wires": [
+      [
+        "0d07d82ce1bcc344"
+      ]
+    ]
+  },
+  {
+    "id": "0d07d82ce1bcc344",
+    "type": "function",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Match tag",
+    "func": "// Finds the spool for msg.tap.tag and builds the Spoolman update.\n// Normal tap: the spool whose nfc_uid matches gets the reader's location.\n// Enroll mode (input_number.spool_enroll_id > 0): that spool gets this tag as its\n// nfc_uid. The spool's location is left alone (see ENROLL_SETS_LOCATION_AT).\n// Output 1: PATCH request for Spoolman. Output 2: failure, with msg.tap.reason.\nconst SPOOLMAN = 'http://SPOOLMAN_HOST:7912/api/v1';  // Change to your Spoolman address.\n// Readers whose location is listed here also move the spool there when enrolling,\n// e.g. ['Storage'] while cataloging a shelf. Empty: enrolling links the sticker only.\nconst ENROLL_SETS_LOCATION_AT = [];\n\nconst t = msg.tap;\nconst fail = (reason) => {\n    t.success = false;\n    t.reason = reason;\n    return [null, msg];\n};\n\nif (msg.statusCode !== 200 || !Array.isArray(msg.payload)) {\n    return fail(`Spoolman lookup failed (HTTP ${msg.statusCode})`);\n}\nconst spools = msg.payload;\n\n// Extra field values are JSON-encoded strings, e.g. \"\\\"04-A1-B2-C3-D4-E5-F6\\\"\".\nconst uidOf = (s) => {\n    try {\n        const v = JSON.parse((s.extra && s.extra.nfc_uid) || 'null');\n        return v ? String(v).trim().toUpperCase() : null;\n    } catch (e) {\n        return null;\n    }\n};\nconst labelOf = (s) => {\n    const f = s.filament || {};\n    return `#${s.id} ${(f.vendor && f.vendor.name) || ''} ${f.name || ''}`.replace(/\\s+/g, ' ').trim();\n};\nconst owners = spools.filter((s) => uidOf(s) === t.tag);\n\nconst enrollId = Math.trunc(Number(msg.enroll_id) || 0);\nlet spool;\nlet body;\nif (enrollId > 0) {\n    spool = spools.find((s) => s.id === enrollId);\n    if (!spool) return fail(`Enroll: spool #${enrollId} not found (or archived).`);\n    const other = owners.find((s) => s.id !== enrollId);\n    if (other) {\n        return fail(`Enroll: tag ${t.tag} is already on spool ${labelOf(other)}. Clear its nfc_uid in Spoolman first.`);\n    }\n    body = { extra: { nfc_uid: JSON.stringify(t.tag) } };\n    if (ENROLL_SETS_LOCATION_AT.includes(t.location)) body.location = t.location;\n    t.mode = 'enroll';\n} else {\n    if (owners.length === 0) {\n        return fail(`Unknown tag ${t.tag} at ${t.location}. To enroll it, set \"Spool enroll ID\" to the spool's number and tap again.`);\n    }\n    if (owners.length > 1) {\n        return fail(`Tag ${t.tag} is on several spools: ${owners.map(labelOf).join(', ')}. Fix nfc_uid in Spoolman.`);\n    }\n    spool = owners[0];\n    body = { location: t.location };\n    t.mode = 'move';\n}\n\nt.spool = { id: spool.id, label: labelOf(spool), from: spool.location || 'Unassigned' };\nmsg.method = 'PATCH';\nmsg.url = `${SPOOLMAN}/spool/${spool.id}`;\n// Replace the GET's response headers, which would otherwise be sent as request headers.\nmsg.headers = { 'Content-Type': 'application/json' };\nmsg.payload = body;\nreturn [msg, null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1010,
+    "y": 1720,
+    "wires": [
+      [
+        "3909e55dec447154"
+      ],
+      [
+        "ed56b353ec2655a8"
+      ]
+    ]
+  },
+  {
+    "id": "3909e55dec447154",
+    "type": "http request",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Update spool",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1190,
+    "y": 1700,
+    "wires": [
+      [
+        "ed56b353ec2655a8"
+      ]
+    ]
+  },
+  {
+    "id": "ed56b353ec2655a8",
+    "type": "function",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Result",
+    "func": "// Decides success, then fans out:\n// output 1: reader feedback (green or red), output 2: reset the enroll helper after\n// a successful enroll, output 3: Home Assistant notification for failures.\nconst t = msg.tap;\nif (t.success !== false) {\n    if (msg.statusCode === 200) {\n        t.success = true;\n    } else {\n        t.success = false;\n        t.reason = `Spoolman update of spool #${t.spool.id} failed (HTTP ${msg.statusCode})`;\n    }\n}\n\n// Remember the answer so a repeat read of the same tag gets it too.\nconst last = flow.get('spoolTapLast') || {};\nconst key = `${t.reader}|${t.tag}`;\nif (last[key]) {\n    last[key].result = t.success;\n    flow.set('spoolTapLast', last);\n}\n\nif (t.success) {\n    const what = t.mode === 'enroll' ? 'tag enrolled at' : `${t.spool.from} →`;\n    node.status({ fill: 'green', shape: 'dot', text: `${t.spool.label}: ${what} ${t.location}` });\n} else {\n    node.status({ fill: 'red', shape: 'ring', text: t.reason });\n    node.warn(t.reason);\n}\n\nconst feedback = { payload: { action: t.feedbackAction, data: { success: t.success } }, tap: t };\nconst resetEnroll = t.success && t.mode === 'enroll' ? { payload: {} } : null;\nconst notify = t.success\n    ? null\n    : { payload: { data: { title: 'Spool reader', message: t.reason, notification_id: 'spool_reader' } } };\nreturn [feedback, resetEnroll, notify];\n",
+    "outputs": 3,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1370,
+    "y": 1720,
+    "wires": [
+      [
+        "c47e8aaae6090b8a",
+        "036eaf28ca860708"
+      ],
+      [
+        "6e49fead3df6aa3b"
+      ],
+      [
+        "5c1a28acf2c5e0f5"
+      ]
+    ]
+  },
+  {
+    "id": "c47e8aaae6090b8a",
+    "type": "api-call-service",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Reader feedback",
+    "server": "",
+    "version": 7,
+    "debugenabled": false,
+    "action": "esphome.spool_reader_printer_1_feedback",
+    "floorId": [],
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "labelId": [],
+    "data": "",
+    "dataType": "jsonata",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "blockInputOverrides": false,
+    "domain": "esphome",
+    "service": "spool_reader_printer_1_feedback",
+    "x": 1610,
+    "y": 1660,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "6e49fead3df6aa3b",
+    "type": "api-call-service",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Reset enroll ID",
+    "server": "",
+    "version": 7,
+    "debugenabled": false,
+    "action": "input_number.set_value",
+    "floorId": [],
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [
+      "input_number.spool_enroll_id"
+    ],
+    "labelId": [],
+    "data": "{\"value\":0}",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "blockInputOverrides": true,
+    "domain": "input_number",
+    "service": "set_value",
+    "x": 1600,
+    "y": 1720,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "5c1a28acf2c5e0f5",
+    "type": "api-call-service",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Notify failure",
+    "server": "",
+    "version": 7,
+    "debugenabled": false,
+    "action": "persistent_notification.create",
+    "floorId": [],
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "labelId": [],
+    "data": "",
+    "dataType": "jsonata",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "blockInputOverrides": false,
+    "domain": "persistent_notification",
+    "service": "create",
+    "x": 1600,
+    "y": 1780,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "036eaf28ca860708",
+    "type": "debug",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Tap result",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "tap",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1590,
+    "y": 1840,
+    "wires": []
+  },
+  {
+    "id": "86a2fcf29fdb1f64",
+    "type": "comment",
+    "z": "8c1957626f841193",
+    "g": "68bc4ca858464ccc",
+    "name": "Spoolman URL is set in 'Get spools' and at the top of 'Match tag'.",
+    "info": "",
+    "x": 470,
+    "y": 1840,
+    "wires": []
+  }
+]

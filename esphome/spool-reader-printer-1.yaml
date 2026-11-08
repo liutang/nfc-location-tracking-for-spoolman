@@ -1,0 +1,9 @@
+# One file per reader: copy this, change the three substitutions, flash.
+# `location` is the exact text written to the spool's Location in Spoolman.
+substitutions:
+  name: spool-reader-printer-1       # lowercase letters, digits and hyphens; 31 characters at most
+  friendly_name: Spool Reader Printer 1
+  location: Printer 1
+
+packages:
+  base: !include common/spool-reader.yaml

@@ -1,0 +1,215 @@
+# Shared config for every spool NFC reader:
+# ESP32-C3 SuperMini + PN532 (I2C) + WS2812B LED + 9042 active buzzer.
+# Each station file sets `name`, `friendly_name` and `location`, then includes this file.
+#
+# Wiring (PN532 DIP switches set to I2C: SW1 = ON, SW2 = OFF):
+#   PN532 VCC, bottom header -> 3.3      PN532 GND, bottom header -> G
+#   PN532 SDA -> GPIO6                   PN532 SCL -> GPIO7
+#   LED 5V    -> 5V                      LED data  -> GPIO10
+#   Buzzer +  -> GPIO5
+#   Ground chain: PN532 GND, side header -> LED GND; LED's other GND -> Buzzer -
+# Splicing every ground to G works too; the chain just avoids a four-wire splice.
+#
+# The round LED boards have Din/Dout silkscreened backwards: data goes to the pad
+# marked Dout (the arrows point from Dout to Din). At 5V the 3.3 V data signal is
+# slightly under the WS2812B's spec; if an LED flickers or misses colors, move its
+# + wire to 3.3.
+#
+# LED:   dim blue = ready, dim orange = not connected to Home Assistant,
+#        white = tag read, waiting for Spoolman, green = location saved, red = failed.
+# Beeps: short click = tag read, two quick beeps = saved, one long beep = failed or no answer.
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: led_idle
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret spool_reader_api_key
+  on_client_connected:
+    - script.execute: led_idle
+  on_client_disconnected:
+    # Give the API a moment to drop the client so led_idle sees the new state.
+    - delay: 500ms
+    - script.execute: led_idle
+  # Node-RED calls this after updating Spoolman so the tap gets a success/fail signal.
+  # In Home Assistant it shows up as esphome.<name with - replaced by _>_feedback.
+  actions:
+    - action: feedback
+      variables:
+        success: bool
+      then:
+        - script.stop: await_feedback
+        - if:
+            condition:
+              lambda: "return success;"
+            then:
+              - script.execute: show_ok
+            else:
+              - script.execute: show_fail
+
+ota:
+  - platform: esphome
+    # No key here: OTA updates reuse the API encryption key above.
+    encryption: {}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Many ESP32-C3 SuperMini boards have a poorly tuned antenna and drop off Wi-Fi
+  # at full power. If yours connects reliably, you can delete this line.
+  output_power: 8.5dB
+  ap: {}
+
+captive_portal:
+
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+
+pn532_i2c:
+  update_interval: 300ms
+  on_tag:
+    then:
+      - script.stop: show_ok
+      - script.stop: show_fail
+      - script.execute: beep_read
+      - script.execute: await_feedback
+      - text_sensor.template.publish:
+          id: last_tag
+          state: !lambda "return x;"
+      - homeassistant.event:
+          event: esphome.spool_tap
+          data:
+            tag_id: !lambda "return x;"
+            location: "${location}"
+            reader: "${name}"
+
+text_sensor:
+  - platform: template
+    name: Last tag
+    id: last_tag
+    icon: mdi:nfc-variant
+
+sensor:
+  - platform: wifi_signal
+    name: Wi-Fi signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: Status LED
+    internal: true
+    pin: GPIO10
+    num_leds: 1
+    chipset: WS2812
+    channel_colors: GRB
+    default_transition_length: 0s
+    # Linear brightness. The default gamma of 2.8 turns the 8% idle glow into under 1/255 (invisible).
+    gamma_correct: 1.0
+    restore_mode: ALWAYS_OFF
+
+output:
+  - platform: gpio
+    pin: GPIO5
+    id: buzzer
+
+script:
+  - id: led_idle
+    mode: restart
+    then:
+      - if:
+          condition:
+            api.connected:
+          then:
+            - light.turn_on:
+                id: status_led
+                brightness: 8%
+                red: 0%
+                green: 30%
+                blue: 100%
+          else:
+            - light.turn_on:
+                id: status_led
+                brightness: 8%
+                red: 100%
+                green: 40%
+                blue: 0%
+
+  # Runs from tag read until Node-RED answers. No answer within 5 s counts as a failure.
+  - id: await_feedback
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_led
+          brightness: 30%
+          red: 100%
+          green: 100%
+          blue: 100%
+      - delay: 5s
+      - logger.log: "No answer from Home Assistant/Node-RED for the last tap"
+      - script.execute: show_fail
+
+  - id: show_ok
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_led
+          brightness: 30%
+          red: 0%
+          green: 100%
+          blue: 0%
+      - script.execute: beep_ok
+      - delay: 1500ms
+      - script.execute: led_idle
+
+  - id: show_fail
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_led
+          brightness: 30%
+          red: 100%
+          green: 0%
+          blue: 0%
+      - script.execute: beep_fail
+      - delay: 2s
+      - script.execute: led_idle
+
+  - id: beep_read
+    mode: restart
+    then:
+      - output.turn_on: buzzer
+      - delay: 40ms
+      - output.turn_off: buzzer
+
+  - id: beep_ok
+    mode: restart
+    then:
+      - output.turn_on: buzzer
+      - delay: 80ms
+      - output.turn_off: buzzer
+      - delay: 80ms
+      - output.turn_on: buzzer
+      - delay: 80ms
+      - output.turn_off: buzzer
+
+  - id: beep_fail
+    mode: restart
+    then:
+      - output.turn_on: buzzer
+      - delay: 700ms
+      - output.turn_off: buzzer
