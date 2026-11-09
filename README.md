@@ -2,7 +2,9 @@
 
 Tap a filament spool on a small NFC reader, and [Spoolman](https://github.com/Donkie/Spoolman) records where that spool is. Put one reader at each printer, shelf or storage bin. When you move a spool, tap it at its new spot. The reader turns green and beeps twice once Spoolman has saved the location.
 
-![Inside a finished reader](images/reader-inside.webp)
+https://github.com/user-attachments/assets/83de475b-caf7-4112-8057-49b366adc0b7
+
+*A spool tapped at one reader, then at another. Spoolman (right) shows the new location about half a second after each tap. Turn the sound on to hear the beeps. ([Download the video](images/demo.mp4))*
 
 Each reader is an ESP32-C3 board, a PN532 NFC reader, one RGB LED and a buzzer in a 3D-printed case, for well under $15 a reader. Each spool gets a cheap NTAG213 sticker. Home Assistant and Node-RED connect the readers to Spoolman.
 
@@ -83,6 +85,10 @@ curl -X POST http://SPOOLMAN_HOST:7912/api/v1/field/spool/nfc_uid \
 | LED's other `GND` pad | Buzzer − |
 
 The PN532's side-header `VCC` stays empty.
+
+A finished reader, before its red power LEDs were taped over (see below):
+
+![Inside a finished reader](images/reader-inside.webp)
 
 **Why the grounds are chained:** the SuperMini has one `G` pad, but four parts need ground. The PN532 has two `GND` pads connected to each other, one on each header, and so does the LED board. So each part passes ground on to the next, with one wire per pad, and you avoid soldering a four-wire splice. Before you rely on it, beep the PN532's two `GND` pads together with a multimeter, and its two `VCC` pads. They were connected on the board I measured, but there's no official schematic for these clones.
 
@@ -173,7 +179,7 @@ After that, just tap a spool wherever you put it.
 | `esphome/secrets.yaml.example` | The three secrets the firmware needs |
 | `node-red/spool-tracker-flow.json` | The Node-RED flow |
 | `spoolman/compose.yaml` | Example Docker Compose file for Spoolman |
-| `images/` | Wiring diagram and reader photo |
+| `images/` | Demo video, wiring diagram and reader photo |
 
 ## License
 
