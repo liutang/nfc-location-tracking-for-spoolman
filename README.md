@@ -142,11 +142,9 @@ The flow answers whichever reader sent the tap, so adding another reader needs n
 
 ## Step 5: Enroll your spools
 
-**To enroll a spool:** set **Spool enroll ID** in Home Assistant to the spool's ID, the `#` number on its Spoolman card. Then tap its sticker on any reader and wait for green. The helper resets to 0 by itself.
+**To enroll a spool:** set **Spool enroll ID** in Home Assistant to the spool's ID, the `#` number on its Spoolman card. Then tap its sticker on the reader where the spool belongs and wait for green. The helper resets to 0 by itself.
 
-Enrolling only links the sticker; it doesn't move the spool. So you can enroll every spool at one reader, then tap each one at its real spot.
-
-**Cataloging a whole shelf:** to enroll and place a spool in one tap, list that reader's location in `ENROLL_SETS_LOCATION_AT` at the top of **Match tag**, for example `['Storage']`, and deploy. Enrolling at that reader then also moves the spool there. Empty the list again when you're done.
+Enrolling links the sticker and moves the spool to that reader's location in one tap, so a whole shelf can be cataloged spool by spool at the shelf's reader.
 
 After that, just tap a spool wherever you put it.
 
@@ -154,7 +152,7 @@ After that, just tap a spool wherever you put it.
 |---|---|---|
 | Known sticker | The spool's location is set to the reader's location | Green |
 | Unknown sticker | Nothing changes; a Home Assistant notification shows the sticker's UID | Red |
-| `Spool enroll ID` set | That spool gets the sticker's UID, and the helper resets to 0 | Green |
+| `Spool enroll ID` set | That spool gets the sticker's UID and the reader's location, and the helper resets to 0 | Green |
 | Sticker already on another spool | Refused; the notification names the other spool | Red |
 | Same sticker on the same reader within 4 s | Ignored as a repeat read | Same as the first |
 | Spoolman down or the update fails | Notification with the HTTP status | Red |
